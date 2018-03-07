@@ -171,9 +171,7 @@ bool LipidDirectors::Evaluate(SnapShot* current)
     pos1[0]=pos1[0]/pos1.size();
     pos2[0]=pos2[0]/pos2.size();
   
-//    thedirectors[globalcount]=boxdist(pos2[0],pos1[0]);
-        thedirectors[globalcount]=boxdist(pos1[0],pos2[0]);
-
+    thedirectors[globalcount]=boxdist(pos2[0],pos1[0]);
   //  thedirectors[globalcount].print();
     thedirectors[globalcount]=thedirectors[globalcount]/thedirectors[globalcount].abs();
     centers[globalcount]=center;

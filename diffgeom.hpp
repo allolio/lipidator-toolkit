@@ -348,7 +348,7 @@ public:
     S(1,0)= (I(0,1)*II(1,1)-II(1,0)*I(1,1))/denum;
     // fF-gE
     S(1,1)= (I(0,1)*II(0,1)-II(1,1)*I(0,0))/denum;
-    shape=-S;
+    shape=S;
     return true;
   }
   double GetK(const Vector2d &X)

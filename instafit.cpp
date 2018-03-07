@@ -9,6 +9,21 @@ typedef vector<int> atomlist;
 #include "diffgeom.hpp"
 #include "funcfit.hpp"
 
+
+template <class T> double SinVolumeNorm( vector<int> *coord,double freq, Histogram<T> *h)
+{
+double vol=1;
+for(int i=0; i!=h->grid.limits.size(); i++)
+ { int n=(*coord)[i];
+   double alpha=h->grid.lengths[i]*1;
+  vol*=sin(alpha*n+0.5*alpha);
+  }
+
+ return vol;
+
+}
+
+
 double EstimateScaling(Surface &s)
 {
   Geometry g(&s);
@@ -35,9 +50,7 @@ double SurfaceIntegral(Surface &s,double umin, double umax, double vmin,double v
        Vector2d pos(ucurr,vcurr);
       g.GetI(pos,metric);
       double sqrtg=sqrt(metric.determinant());
-      //sqrtg;
       A+=sqrtg*ustep*vstep;
-  //    cout << A << "X "<< endl;
     }
   
   return A;
@@ -56,7 +69,6 @@ int LipidsInArea(vector <tuple> &lipids,double xmin,double xmax, double ymin,dou
 bool FitPolyLM2d(vector<tuple> &points , P2Surface &p2s )
 {
   if(points.size()<6) return false;
-  // x^2 y^2 xy x y c 
   VectorXd c=VectorXd::Zero(6);
 
   MatrixXd xsvals(points.size(),2);
@@ -70,18 +82,12 @@ bool FitPolyLM2d(vector<tuple> &points , P2Surface &p2s )
       P2FSurface surf2;
 
    {  Matrix3d b; b.setIdentity(); surf2.setup(&c,&b);}
-  //   else( surf2.setup(&c,bas));
-
-//    Matrix3d bas;
-  //  bas.setIdentity();
     FuncFunctord dasurf(xsvals,ysvals,surf2);
     Eigen::LevenbergMarquardt<FuncFunctord> lm2(dasurf);
     Eigen::LevenbergMarquardtSpace::Status status;
     status=lm2.minimize(c);
     if(status==1) return false;
   {  Matrix3d b; b.setIdentity(); p2s.setup(&c,&b);}
-//else{    p2s.setup(&c,bas);}
-  // coefficients=x;
   return true;
   
 }
@@ -89,7 +95,6 @@ bool FitPolyLM2d(vector<tuple> &points , P2Surface &p2s )
 bool FitPlaneLM2d(vector<tuple> &points , Plane &p2s )
 {
   if(points.size()<4) return false;
-  // x^2 y^2 xy x y c 
   VectorXd c=VectorXd::Zero(3);
 
   MatrixXd xsvals(points.size(),2);
@@ -103,18 +108,12 @@ bool FitPlaneLM2d(vector<tuple> &points , Plane &p2s )
       P2FPlane surf2;
 
    {  Matrix3d b; b.setIdentity(); surf2.setup(&c,&b);}
-  //   else( surf2.setup(&c,bas));
-
-//    Matrix3d bas;
-  //  bas.setIdentity();
     FuncFunctord dasurf(xsvals,ysvals,surf2);
     Eigen::LevenbergMarquardt<FuncFunctord> lm2(dasurf);
     Eigen::LevenbergMarquardtSpace::Status status;
     status=lm2.minimize(c);
     if(status==1) return false;
   {  Matrix3d b; b.setIdentity(); p2s.setup(&c,&b);}
-//else{    p2s.setup(&c,bas);}
-  // coefficients=x;
   return true;
   
 }
@@ -134,7 +133,6 @@ bool FitPolyLM2dIter(vector<tuple> &points , P2Surface &p2s )
   while(!converged)
   {
   if(local.size()<10) return false;
-  // x^2 y^2 xy x y c 
   MatrixXd xsvals(local.size(),2);
   MatrixXd ysvals(local.size(),3);
   int i=0;
@@ -146,10 +144,6 @@ bool FitPolyLM2dIter(vector<tuple> &points , P2Surface &p2s )
       P2FSurface surf2;
 
    {   surf2.setup(&c,&b);}
-  //   else( surf2.setup(&c,bas));
-
-//    Matrix3d bas;
-  //  bas.setIdentity();
     FuncFunctord dasurf(xsvals,ysvals,surf2);
     Eigen::LevenbergMarquardt<FuncFunctord> lm2(dasurf);
     Eigen::LevenbergMarquardtSpace::Status status;
@@ -157,7 +151,6 @@ bool FitPolyLM2dIter(vector<tuple> &points , P2Surface &p2s )
     int j=0;
     converged=true;
     if(status==1) {return false;coff=3;converged=false;}
-  //  cout << local.size() << endl;
    for (list <Vector3d> ::iterator it = local.begin(); it != local.end(); it++)
   {
     if(surf2.eval(xsvals.row(j))(2)-(ysvals.row(j))(2) > coff) {local.erase(it); it--;converged=false;}
@@ -166,8 +159,6 @@ bool FitPolyLM2dIter(vector<tuple> &points , P2Surface &p2s )
    
   }
   {  p2s.setup(&c,&b);}
-//else{    p2s.setup(&c,bas);}
-  // coefficients=x;
   return true;
   
 }
@@ -207,7 +198,6 @@ bool FitGParb(vector< vector <double > > &data, vector <double> &result , bool s
     result[1]=param[1];
     result[2]=param[2];
 
-  // coefficients=x;
   return true;
   
 }
@@ -226,7 +216,6 @@ bool Align(vector<tuple> &director, Matrix3d &bas)
   
   for(int i=0;i!=director.size();i++)
   { Vector3d e=bas.transpose()*Vector3d(director[i].x,director[i].y,director[i].z);
-//    cout << i<< endl;
     director[i].x=e(0);director[i].y=e(1);director[i].z=e(2);
   }
   return true;
@@ -245,12 +234,8 @@ bool FitTilt(vector<tuple> &pos,vector<tuple> &director, Surface &s,Plane &tus, 
  tuple ev(sdv.data());
 
  
-// s.VectorXYZ2UV((pos[0].p),upos);
   if(director[0]*N<0 ){s.flipnorm(); N=N*-1;}
  
-/* eu.x=1;eu.y=0;eu.z=0;
- eu.x=0;eu.y=1;eu.z=0;
- N.x=0;N.y=0;N.z=1;*/
  vector<tuple> tu(5);
  vector<tuple> tv(5);
  for(int i=0;i!=5;i++)
@@ -271,13 +256,9 @@ FitPlaneLM2d(tv,tvs);
 
 Matrix2d TiltTensor(const Vector2d upos,Surface &tus, Surface &tvs, Geometry &g)
 {
-  // https://epje.epj.org.sci-hub.bz/articles/epje/abs/2000/11/e0025/e0025.html Eq. A6
   Matrix2d tmat;
   double ta=tus.eval(upos)[2];
   double tb=tvs.eval(upos)[2];
-  // Set Basis to Diag
-//  cout << ta <<" "<< tus.du(upos) << " GAMMA " <<  g.Gamma(upos,0,0,0)*ta+g.Gamma(upos,0,0,1)*tb << endl;
-//  cout << tb <<" "<< tvs.dv(upos) << endl;
   
   tmat(0,0)=tus.du(upos)[2]+g.Gamma(upos,0,0,0)*ta+g.Gamma(upos,0,0,1)*tb;
   tmat(0,1)=tus.dv(upos)[2]+g.Gamma(upos,0,1,0)*ta+g.Gamma(upos,0,1,1)*tb;
@@ -293,27 +274,6 @@ Matrix2d Btensor(const Vector2d &X, Geometry &g)
   return bmat;
 }
 
-
-template <class T> double SinVolumeNorm( vector<int> *coord,double freq, Histogram<T> *h)
-{
-double vol=1;
-// Make dependent on radius!
-
-// 2= 
-//cout << " call!" << endl;
-for(int i=0; i!=h->grid.limits.size(); i++)
- { int n=(*coord)[i];
-  // cout << " mo " << r0 << endl;
-   double alpha=h->grid.lengths[i]*1;
-//  if(n==0) {vol=(r0+alpha)*(r0+alpha)*PI-(r0*r0)*PI;}
-  vol*=sin(alpha*n+0.5*alpha);
-  
-//   cout <<" n " <<n*h->grid.lengths[i] << " " << vol << endl ;
-  }
-
- return vol;
- 
-}
 
 int main(int argc, char **argv) {
 
@@ -359,12 +319,11 @@ Vector2d cent;
 cent=cent*0;
 while(s.Valid())
 {
-//cout << "BUILIDING LIPIDS" << endl;
+//BUILIDING LIPIDS
 lipids.Evaluate(&s);
 dir=lipids.GetDirectors();
 c=lipids.GetCenters();
-//cout << "GETTING ENV" << endl;
-//#pragma omp parallel for
+//GETTING ENV
 double AVGA=0;
 double AVGPL=0;
 double AVGBEND=0;
@@ -378,39 +337,27 @@ for(int i=0;i<c->size();i++)
  atomlist indices;
  if(lipids.GetLipidEnv(i,lpos,indices,25,false))
  {
- //cout << lpos.size();
-// cout << lpos[lpos.size()-1].abs() << endl;
  P2Surface s;
  Plane tvs,tus;
  Matrix3d basis; 
  PrincipalAxes(lpos,basis);
-// basis.setIdentity();
  Align(lpos,basis);
  if(FitPolyLM2d(lpos,s))
  {
  double exc=drand48()*1.0-0.5;
  double cut=3.66; //3.7
  cut*=pow(EstimateScaling(s),2);
-//cout << EstimateScaling(s) << endl; 
- // cut*=EstimateScaling(s);
-// cout << cut << endl;
  double A=SurfaceIntegral(s,-cut+exc,cut+exc,-cut+exc,cut+exc,20);
  double PL=LipidsInArea(lpos,-cut+exc,cut+exc,-cut+exc,cut+exc);
  AVGA+=A;
  AVGPL+=PL;
    contrib++;
 
-// cout << APL << endl;
- // FitPoly2d(lpos,s);
-//LM2d
-// basis.setIdentity();
  Geometry go(&s);
  for(int j=0;j!=ldir.size();j++) {  Vector3d d((double*) &dir->at(indices[j]).p);d=basis.transpose()*d; ldir[j]=tuple(d.data());  }
  FitTilt(lpos,ldir,s,tus,tvs);
  Matrix2d tab=TiltTensor(cent,tus,tvs,go); 
  Matrix2d bab=Btensor(cent,go);
-// cout << "" << flush; //MAGIC 
- Matrix2d nab=-tab;//-tab;
  double t=(Tilt(s,ldir[0])).abs();
  double Splay=tab.trace();
  AVGBEND+=bab.trace();
@@ -428,27 +375,14 @@ if(argc >4 && argv[4]=="t")  for(int j=0;j!=6;j++) cerr << ldir[j]*ldir[0] << " 
  ht.AddDatapoint(1,t);//t
 
   
-//	  cout << dir->at(i).abs() << " "  << angle*360/2/3.141592654 << endl;
- /*
-	
-	  if(angle>1.44) 
-	  {
-	  dir->at(i).print();
-	  cout << dir->at(i).abs() << " " << i << " " << angle*360/2/3.141592654 << endl;
-
-	  }*/
-	  
 
 if(argc > 4) 
 {   
       Vector3d Nx = s.unormv(Vector2d(0.0,0.0));
       Nx=basis*Nx;
     cout << "KG : " << bab.determinant() << " B: " << go.GetH(cent) << " T: " << tab.trace() << " DL: "<< sqrt(Splay*Splay/4-KG) << " Frame " << avk.size() << " p  " << c->at(i).x << " " << c->at(i).y << " " <<c->at(i).z << " n " << dir->at(i).x << " " << dir->at(i).y << " " << dir->at(i).z << " N " << Nx(0) << " " << Nx(1) << " " << Nx(2) << endl;}
-//else cout << flush;
 }}}
 double AVGAPL=AVGA/AVGPL;
-//AVGAPL/=(1.0*contrib);
-//cout << AVGAPL << " CONTRIB " << contrib << endl;
 
 AVGBEND/=contrib;
 AVGK/=contrib;
@@ -458,8 +392,6 @@ tuple dim;
 dim.x=box.row[0].x;
 dim.y=box.row[1].y;
 dim.z=box.row[2].z;
-//cout << AVGAPL  << " " << dim.x*dim.y/c->size()*2.0 << " " << contrib <<endl;
-//cout << box.det() << endl;
 if(!witchcraft) AVGAPL= dim.x*dim.y/c->size()*2.0;
 if(AVGAPL==AVGAPL) { vol.push_back(AVGAPL); avbend.push_back(AVGBEND); avk.push_back(AVGK);}
 s=traj.NextFrame();
@@ -520,24 +452,15 @@ h.Data(&data);
 vector<double> res;
 
 FitGParb(data,res,true);
-//cout << "Monolayer Bending: kappa " << res[0]*2/(avg) << " kt Offset: " << res[2] << endl; 
 double shift=res[2];
 vector<vector <double> > tmp;
 tmp.resize(2);
 for(int i=0;i!=data[0].size();i++)
 {
-//  data[0][i]-=res[2];
 if(data[0][i]>-0.05 && data[0][i]<0.05) {tmp[0].push_back(data[0][i]);tmp[1].push_back(data[1][i]);}
-//  if(data[0][i]>-0.025 && data[0][i]<0.025) {tmp[0].push_back(data[0][i]);tmp[1].push_back(data[1][i]);}
 }
-//for(int i=0;i!=tmp[0].size();i++) cout<< tmp[0][i] << " " << tmp[1][i] << endl; 
 FitGParb(tmp,res);
 cout << "Monolayer Bending: kappa " << res[0]*2/(avg) << " kt Offset [nm^-1]: " << shift*10 << endl; 
-/*for (int i=0;i!=data[0].size();i++)
-{
-  cout << data[0][i] << " "  << data[1][i] << endl;
-}*/
-
 of.close();
 of2.open((string(argv[1]) +".itilt").c_str());
 of2 << "# Area AVG [A^2]: " << avg*lipnum << " STDEV: " << stdev << " Per Lipid [bilayer]: " << avg*lipnum << " +- STDERR(10) " << ba2/sqrt(blocks.size())  << " STDEV " << stdev << endl;    
@@ -559,20 +482,11 @@ tmp[1][i]/=norm;
 avt2+=tmp[1][i]*tmp[0][i]*tmp[0][i];
 avg2+=tmp[1][i]*tmp[0][i];
 }
-//avg2/=norm;
-/*cout << "XMAX " << xmax << endl;
-for (int i=0;i!=data[0].size();i++)
-{
-  cout << tmp[0][i] << " "  << tmp[1][i] << endl;
-}*/
-
-//avt2/=(norm*norm);
 std=sqrt(avt2-avg2*avg2);
 cout << std << " AVG " <<avg2 << endl ;
 tmp[0].resize(0);
 tmp[1].resize(0);
 for(int i=0;i!=data[0].size();i++) if(data[0][i] > (xmax-std) &&  data[0][i] < (xmax+std) ) {tmp[0].push_back(data[0][i]);tmp[1].push_back(data[1][i]);}
-//cout << "avg" << avg2 << " " << std << " " <<  tmp[0].size() << endl;
 FitGParb(tmp,res);
 cout << "Bilayer Tilt: kappa " << res[0]*2/(avg/100) << " kt/nm^2 Offset: " << res[2] << endl; 
 cout << "-------------------END SUMMARY--------------" << endl;
