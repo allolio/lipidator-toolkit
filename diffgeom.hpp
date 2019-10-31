@@ -137,6 +137,7 @@ private:
   if(dx==0 && dy==1) return  2*coeff[1]*y+coeff[2]*x+coeff[4];
   if(dx==0 && dy==2) return  2*coeff[1];
   if(dx==1 && dy==1) return  coeff[2];
+  return PHAIL;
   }
   VectorXd coeff;
   Matrix3d basis;
@@ -194,6 +195,7 @@ private:
   if(dx==0 && dy==1) return  coeff[1];
   if(dx==0 && dy==2) return  0.0;
   if(dx==1 && dy==1) return  0.0;
+  return PHAIL;
   }
   VectorXd coeff;
   Matrix3d basis;
@@ -201,7 +203,7 @@ private:
 };
 
 
-bool PrincipalAxes(vector<tuple> &points, Matrix3d &axes, tuple *center=NULL)
+bool PrincipalAxes(vector<triple> &points, Matrix3d &axes, triple *center=NULL)
 {
   if(center != NULL) return false; // Always centered around zero
   // First POINT CENTER;
@@ -233,7 +235,7 @@ bool PrincipalAxes(vector<tuple> &points, Matrix3d &axes, tuple *center=NULL)
 }
 
 
-bool FitPoly2d(vector<tuple> &points , P2Surface &p2s, Matrix3d *basis=NULL )
+bool FitPoly2d(vector<triple> &points , P2Surface &p2s, Matrix3d *basis=NULL )
 {
    Matrix3d bas;   
   if(basis==NULL) bas.setIdentity();
@@ -266,7 +268,7 @@ bool FitPoly2d(vector<tuple> &points , P2Surface &p2s, Matrix3d *basis=NULL )
   
 }
 
-bool FitPlane(vector<tuple> &points , Plane &ps, Matrix3d *basis=NULL )
+bool FitPlane(vector<triple> &points , Plane &ps, Matrix3d *basis=NULL )
 {
    Matrix3d bas;   
   if(basis==NULL) bas.setIdentity();
@@ -329,7 +331,7 @@ public:
     IIa(0,1)=s->duv(X).dot(N);
     IIa(1,0)=IIa(0,1);
     IIa(1,1)=s->dv(X,2).dot(N);
-    
+    return true; 
    // IIa=II;
   }
   bool GetShape(const Vector2d &X, Matrix2d &shape)
@@ -348,7 +350,7 @@ public:
     S(1,0)= (I(0,1)*II(1,1)-II(1,0)*I(1,1))/denum;
     // fF-gE
     S(1,1)= (I(0,1)*II(0,1)-II(1,1)*I(0,0))/denum;
-    shape=S;
+    shape=-S;
     return true;
   }
   double GetK(const Vector2d &X)

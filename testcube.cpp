@@ -154,7 +154,7 @@ void zpad ( vector<yvals> &ymat,int zeros)
     for(int x=0;x!=yout[0].size();x++)
     for(int y=0;y!=yout.size();y++)
     {     
-      ymat[y][x].real()/=((yh*xh*2.0)*2.0);
+      ymat[y][x].real(ymat[y][x].real()/((yh*xh*2.0)*2.0));
 //      cout << ymat[y][x].real() << " " ;
       //<< " " ;///1302.0<< " "; 
     }
@@ -209,7 +209,7 @@ void lpass ( vector<yvals> &ymat)
     for(int x=0;x!=yout[0].size();x++)
     for(int y=0;y!=yout.size();y++)
     {     
-      ymat[y][x].real()/=(yh*xh)*4.0;
+      ymat[y][x].real(ymat[y][x].real()/(yh*xh)*4.0);
     }
     cout << endl;
    cout  << " " << xh << " "<< yh << endl;
@@ -306,20 +306,20 @@ Grid g3,g4;
 
 g2.limits.push_back((int) (xgrid));
 g2.limits.push_back((int) (ygrid));
-g2.width.push_back(make_pair<double,double>(xmin,xmax));
-g2.width.push_back(make_pair<double,double>(ymin,ymax));
+g2.width.push_back(make_pair(xmin,xmax));
+g2.width.push_back(make_pair(ymin,ymax));
 
 g3.limits.push_back((int) (xgrid/4.0));
 g3.limits.push_back((int) (ygrid/4.0));
 g3.limits.push_back(zgrid);//32 12
-g3.width.push_back(make_pair<double,double>(xmin,xmax));
-g3.width.push_back(make_pair<double,double>(ymin,ymax));
-g3.width.push_back(make_pair<double,double>(0.0,zmax-zmin));
+g3.width.push_back(make_pair(xmin,xmax));
+g3.width.push_back(make_pair(ymin,ymax));
+g3.width.push_back(make_pair(0.0,zmax-zmin));
 
 g4.limits.push_back((int) (xgrid+2*zeros));
 g4.limits.push_back((int) (ygrid+2*zeros));
-g4.width.push_back(make_pair<double,double>(xmin,xmax));
-g4.width.push_back(make_pair<double,double>(ymin,ymax));
+g4.width.push_back(make_pair(xmin,xmax));
+g4.width.push_back(make_pair(ymin,ymax));
 
 
 /**
@@ -329,9 +329,9 @@ Grid g;
 g.limits.push_back(xgrid+2*zeros);
 g.limits.push_back(ygrid+2*zeros);
 g.limits.push_back(zgrid);//32 12
-g.width.push_back(make_pair<double,double>(0.0,xmax-xmin));
-g.width.push_back(make_pair<double,double>(0.0,ymax-ymin));
-g.width.push_back(make_pair<double,double>(0.0,zmax-zmin));
+g.width.push_back(make_pair(0.0,xmax-xmin));
+g.width.push_back(make_pair(0.0,ymax-ymin));
+g.width.push_back(make_pair(0.0,zmax-zmin));
 
 s_in.setGrid(g2);
 s_fin.setGrid(g4);
@@ -348,7 +348,7 @@ of << std::fixed;
 for(int i=0;i!=s.GetAtoms();i++)
 {
    Atom &at=s.GetAtom(i);
-   tuple a=at.pos;
+   triple a=at.pos;
   // if(a.x> xmin && a.y > zmin && a.z > ymin && a.z < ymax && a.x < xmax && a.y < zmax)
    {
        int type;
@@ -357,28 +357,28 @@ for(int i=0;i!=s.GetAtoms();i++)
    if(at.type=="O") type=8;    
    if(at.type=="N") type=7;    
 if(at.type=="P") type=15; 
-   of << type << " "<< 0.0 << " " << (a.x-xmin)*1.88973 << " " << (a.z-ymin)*1.88973 << " " << (a.y-zmin)*1.88973 << endl;
+   of << type << " "<< 0.0 << " " << (a.x-xmin)*1.88973 << " " << (a.y-ymin)*1.88973 << " " << (a.z-zmin)*1.88973 << endl;
    }
 }
 of.close();
 string buffer;
-int col=4;
-while(getline(input,buffer)>0)
-{
+int col=2;
+while(input.good())
+{ getline(input,buffer);
    vector<string> line;
    int htokens=Tokenize(buffer,&line, " \t");
  //  cout << line[12] << " " << line[14] << endl;
   // cout << line[col] << endl;
-   tuple n,dir;
+   triple n,dir;
    n.x=atof(line[20].c_str());n.y=atof(line[21].c_str());n.z=atof(line[22].c_str());
-   dir.x=0.0;dir.y=1.0;dir.z=0;
+   dir.x=0.0;dir.y=0.0;dir.z=1;
           n.print(); 
 
-   if((atof(line[13].c_str()) > zmin) && (atof(line[13].c_str()) < zmax) && (dir*n > 0))
+   if((atof(line[14].c_str()) > zmin) && (atof(line[14].c_str()) < zmax) && (dir*n > 0))
    {
-   s_in.AddDatapoint( atof(line[13].c_str()), atof(line[12].c_str()), atof(line[14].c_str()));
+   s_in.AddDatapoint( atof(line[14].c_str()), atof(line[12].c_str()), atof(line[13].c_str()));
    if(abs(atof(line[col].c_str())) < 1)
-   s_cover.AddDatapoint( atof(line[col].c_str()), atof(line[12].c_str()), atof(line[14].c_str()));
+   s_cover.AddDatapoint( atof(line[col].c_str()), atof(line[12].c_str()), atof(line[13].c_str()));
    //cout << line[14] << " "  << line[13] << " "<< line[12]<< endl;
 
    }

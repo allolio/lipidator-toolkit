@@ -370,6 +370,7 @@ private:
   if(dx==0 && dy==1) return  m_params[1];
   if(dx==0 && dy==2) return  0.0;
   if(dx==1 && dy==1) return  0.0;
+  return 0.0;
   }
 //  VectorXd m_;
   Matrix3d basis;

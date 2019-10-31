@@ -8,7 +8,10 @@ typedef vector<int> atomlist;
 #include "lipidrecsum.hpp"
 #include "histogram.hpp"
 #include "funcfit.hpp"
+#define NFFT_PRECISION_DOUBLE
 
+
+//#include "surf.h"
 
 int sign(double x)
 {
@@ -208,6 +211,20 @@ void prepare_nperp(int gdim, vector<yvals> &fftx, vector<yvals> &ffty,vector<yva
 }
 
 
+/*
+void prepare_nxy(int gdim, vector<yvals> &fftx, vector<yvals> &ffty,vector<yvals> &fftxy)
+{
+   for (int i=0;i!=gdim;i++)
+  {
+    for(int j=0;j!=gdim;j++)
+    {
+      fftxy[i][j]=(fftx[j][i]*(double) i+ffty[j][i]*(double) j)/sqrt((double) (i*i)+ (double) (j*j));
+    }
+  }
+   fftxy[0][0]=0;
+ 
+}*/
+
 vector<yvals> interpol_nxy(int N,int M, double *inx,double *iny,vector<bool> &updown, vector<yvals> &nperp)
 {
   //N output grid
@@ -236,6 +253,8 @@ vector<yvals> interpol_nxy(int N,int M, double *inx,double *iny,vector<bool> &up
 	 fftx[i][j].real(out[i*gdim+j].r-out2[i*gdim+j].r);
 	 fftx[i][j].imag(out[i*gdim+j].i-out2[i*gdim+j].i);
 	 fftx[i][j]/=gdim*gdim*2;//2
+//	 
+	 //cout <<  out[i*gdim+j].r/1024 << " I "  << inb[i*gdim+j].i/1024 << " X "  << grid[i*gdim+j] << endl;
        }
   }
   vector<yvals> ffty;
@@ -256,6 +275,8 @@ vector<yvals> interpol_nxy(int N,int M, double *inx,double *iny,vector<bool> &up
 	 ffty[i][j].real(out3[i*gdim+j].r-out4[i*gdim+j].r);
 	 ffty[i][j].imag(out3[i*gdim+j].i-out4[i*gdim+j].i);
 	 ffty[i][j]/=gdim*gdim*2;
+//	 
+	 //cout <<  out[i*gdim+j].r/1024 << " I "  << inb[i*gdim+j].i/1024 << " X "  << grid[i*gdim+j] << endl;
        }
   }
      vector<yvals> fftxy=fftx;
@@ -263,14 +284,42 @@ vector<yvals> interpol_nxy(int N,int M, double *inx,double *iny,vector<bool> &up
   prepare_npar(gdim,fftx,ffty,fftxy);
   prepare_nperp(gdim,fftx,ffty,nperp);
 
+ /*
+  cout << " M" << endl;
+    for(int j=0;j!=M;j++)
+    cout << inx[3*j] << " " << inx[3*j+1] << " " <<  inx[3*j+2] << endl;
+  */
+  
+//   kiss_fftnd_cfg cfg2=kiss_fftnd_alloc ( dims,2, 1,0,0);
+//  kiss_fftnd(cfg2, (kiss_fft_cpx*) out,  (kiss_fft_cpx*) inb);
   if(gridx!=NULL)  free(gridx);
   if(gridy!=NULL)     free(gridy);
 
   return fftxy;
 }
 
+template <class T> double SinVolumeNorm( vector<int> *coord,double freq, Histogram<T> *h)
+{
+double vol=1;
+// Make dependent on radius!
 
-double *PrepareXYZ(vector<tuple> *c,tuple dim,double *ret=NULL)
+// 2= 
+//cout << " call!" << endl;
+for(int i=0; i!=h->grid.limits.size(); i++)
+ { int n=(*coord)[i];
+  // cout << " mo " << r0 << endl;
+   double alpha=h->grid.lengths[i]*1;
+//  if(n==0) {vol=(r0+alpha)*(r0+alpha)*PI-(r0*r0)*PI;}
+  vol*=sin(alpha*n+0.5*alpha);
+  
+//   cout <<" n " <<n*h->grid.lengths[i] << " " << vol << endl ;
+  }
+
+ return vol;
+}
+
+
+double *PrepareXYZ(vector<triple> *c,triple dim,double *ret=NULL)
 {
   if(ret==NULL) ret=(double*) malloc(c->size()*3*sizeof(double));
   for(int i=0;i<c->size();i++)
@@ -306,8 +355,30 @@ void fftshift(int xgrid,double *fftarray, vector<yvals> *out)
     }
   }
 }
+/*
+vector<yvals> nfft(double *in,double *mon,double *mon2, int N, int M)
+{
+ int xgrid=N;
+ vector< yvals > ksurf;
+  ksurf.resize(N);
+  for(int i=0;i!=ksurf.size();i++) ksurf[i].resize(N);
+ 
+interpol(xgrid,M/2,in, (double*) mon);
+interpol(xgrid,M/2,&in[M/2*3], (double*) mon2);
 
-double *UpdateZ(vector<tuple> *c ,double *ret, int axis)
+for(int i=0;i!=(xgrid*xgrid);i++)
+ { 
+ mon[2*i]+=mon2[2*i];
+ mon[2*i]/=2.0;
+ mon[2*i+1]+=mon2[2*i+1];
+ mon[2*i+1]/=2.0; // Stay real
+ }
+ fftshift(xgrid, mon, &ksurf);
+return ksurf;
+
+}*/
+
+double *UpdateZ(vector<triple> *c ,double *ret, int axis)
 {
   for(int i=0;i<c->size();i++)
   {
@@ -316,9 +387,9 @@ double *UpdateZ(vector<tuple> *c ,double *ret, int axis)
   return ret;
 }
 
-void AssignLeaflet(vector<bool> &updown, vector <tuple> *dir)
+void AssignLeaflet(vector<bool> &updown, vector <triple> *dir)
 {
-  tuple plane;
+  triple plane;
   plane.x=0;
   plane.y=0;
   plane.z=1;
@@ -344,11 +415,11 @@ if(argc !=4) {cout << "xtcfile libraryfile indexfile " << endl; exit(-1); }
 XTCFile xtc(argv[1]);
 Trajectory traj(&xtc);
 SnapShot s=traj.NextFrame();
-tuple dim=traj.GetDimensions();
+triple dim=traj.GetDimensions();
 dim.print();
-cout << "-----------------RELEASE-V 1.0---------------" << endl;
-cout << "FOURIER_SPACE DIRECTOR   FLUCTUATION         " << endl;
-cout << "Compiled  " << __DATE__<<  " "<< __TIME__ << endl;
+cout << "-----------------PRE-RELEASE-----------------" << endl;
+cout << "FOURIER_SPACE TILT FLUCTUATION               " << endl;
+cout << "(c) C.Allolio " << __DATE__<<  " "<< __TIME__ << endl;
 cout << "---------------------------------------------" << endl;
 
 //traj.setCutback(true);
@@ -359,8 +430,8 @@ lipids.LoadIndices(argv[3]);
 lipids.Evaluate(&s);
 
 int j=0;
-vector<tuple> *dir;
-vector<tuple> *c;
+vector<triple> *dir;
+vector<triple> *c;
 vector< complex <double> > out;
 c=lipids.GetCenters();
 out.resize(c->size());
@@ -368,12 +439,12 @@ dir=lipids.GetDirectors();
 AssignLeaflet(updown, dir);
 int ucount=0;
 for(int i=0;i!=updown.size();i++) if (updown[i]==0) ucount++;
-cout << "LIPIDS " << endl;
 cout << "TOP " << ucount << " BOTTOM " << dir->size()-ucount << endl ;
 double *inx=PrepareXYZ(c,dim);
 double *iny=PrepareXYZ(c,dim);
 
 //cout << "FILED" << endl;
+//glacier(256, 400);
 int xgrid=256;
 out.resize(xgrid*xgrid);
 double xmax=(traj.GetDimensions()).x;
@@ -383,8 +454,11 @@ h.setGrid(g);
 htilt.setGrid(g);
 dim=traj.GetDimensions();
   
+//h.normfunc=&(VolumeNorm<double>);
+//h.normfunc=&(SinVolumeNorm<double>);
 double *mon= (double*) malloc(xgrid*xgrid*sizeof(double)*2);
 double *mon2= (double*) malloc(xgrid*xgrid*sizeof(double)*2);
+//vector<yvals> nxsurf;
 vector<yvals> nxysurf;
 vector<yvals> nvertsurf;
 
@@ -397,12 +471,17 @@ lipids.Evaluate(&s);
 
 dir=lipids.GetDirectors();
 c=lipids.GetCenters();
+//for(int i=0;i!=c->size();i++) { dir->at(i).x=static_cast <float> (rand()) / static_cast <float> (RAND_MAX); dir->at(i).y=static_cast <float> (rand()) / static_cast <float> (RAND_MAX);}
+//cout << "PREP" << endl;
 xmax=dim.x;
 inx=PrepareXYZ(c,dim,inx);
 inx=UpdateZ(dir,inx,0);
 iny=PrepareXYZ(c,dim,iny);
 iny=UpdateZ(dir,iny,1);
 nxysurf = interpol_nxy(xgrid,c->size(),inx,iny,updown,nvertsurf);
+//nxysurf = interpol_e(xgrid,c->size(),iny);
+//for(int i=0;i!=c->size();i++) { cout << dir->at(i).x - inx[i*3+2] << " " << dir->at(i).y - iny[i*3+2] << endl;}
+//cout << "PREP" << endl;
 
 double area=dim.x*dim.y/100;
 vol.push_back(area);
@@ -420,7 +499,22 @@ double tilesurf=dim.x/10*dim.y/10*((int) sqrt(c->size()/2));
    }
 
    
+//exit(0);
+/*
+in=UpdateZ(&dirx,in);
+interpol(xgrid,c->size()/2,in, (double*) &out[0]);
+in=UpdateZ(&diry,in);
+interpol(xgrid,c->size()/2,in, (double*) &out[0]);*/
+//yvals s=xyfft(out);
+
+//cout << "INTERPOL" << endl;
+//free(mon);
+//for(int i=0;i!=c->size();i++) cout << i/xgrid << " " << i%xgrid << " " << out[i].real() << " " << out[i].imag() << endl;
+//exit(0);
 s=traj.NextFrame();
+//cout << dim.x;
+//cerr << "*" << flush;
+//dim=traj.GetDimensions();
 dim=traj.GetDimensions();
 
 }
@@ -452,10 +546,11 @@ for(int j=0;j!=data[0].size();j++)
   of.close();
   for(int j=0;j!=tdata[0].size();j++)
 {
- double x= tdata[0][j]*qfac/10; double y=tdata[1][j]*area;
+ double x= tdata[0][j]*qfac/10; double y=tdata[1][j]*area;//*area/100;//*area/100;
  if(y>0) tilt << x << " \t " << y << endl; 
  if(x < 2.0 && y > 0 ) {txdat.push_back(x);tydat.push_back(1/y);} 
 
+// if(x < 1.0 && y > 0 ) {xdat.push_back(x);ydat.push_back(y);} 
 }
  tilt.close();
 
@@ -485,7 +580,7 @@ cout << "Chem. Phys. 2018                             " << endl;
 cout << "https://doi.org/10.1016/j.chemphys.2018.03.004" << endl;
    cout << "----------------RESULTS SUMMARY--------------" << endl;
 cout << " FILE: " << argv[1] << endl;
-  cout << "Monolayer Bending: kappa " << 1.0/param(0)/2.0 << " kT" << endl;
+  cout << "Monolayer Bending: kappa " << 1.0/param(0)/2.0 << " kt" << endl;
   	
 	     FitParabola parb;
     
@@ -500,6 +595,9 @@ cout << " FILE: " << argv[1] << endl;
      param(0)= 3.00;
       param(1)= tyvals(0);
      parb.setparam(param);
+ //    cout << txvals << endl;
+ //    cout << "TYVALS" << endl;
+  //   cout << tyvals << endl;
   FuncFunctord daf2(txvals,tyvals,parb);
     Eigen::LevenbergMarquardt<FuncFunctord> lm3(daf2);
    Eigen::LevenbergMarquardtSpace::Status status2 = lm3.minimize(param);
@@ -507,6 +605,15 @@ cout << " FILE: " << argv[1] << endl;
    cout << "Bilayer Twist: kappa " << param(0) << " kt/nm^2 Offset: " << 0 << endl; 
   cout << "----------------------------------------------" << endl;
 
+// cout << mon2[2*xgrid/2*xgrid+2*xgrid/2] << mon2[2*xgrid/2*xgrid+2*xgrid/2+1] << endl;
+/*
+ for(int i=0;i!=c->size();i++) cout << "Xe "  << c->at(i).x << " "  << c->at(i).y << " " << c->at(i).z << endl;
+ for(int i=0;i!=ksurf.size();i++)
+   for(int j=0;j!=ksurf.size();j++)
+   { 
+    cout << ksurf[i][j].real()<< " " << ksurf[i][j].imag() << endl;  
+   }
+*/
 free(mon);
 free(mon2);
 free(inx);free(iny);

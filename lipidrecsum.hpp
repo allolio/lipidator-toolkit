@@ -43,16 +43,16 @@ public:
   bool LoadLibrary(string filename);
   bool LoadIndices(string ndxfile);
   bool Evaluate(SnapShot *current=NULL);
-  bool GetLipidEnv(int index, vector<tuple> &lpos, atomlist &indices,double cutoff,bool strict);
-  vector<tuple> *GetDirectors(void);
-  vector<tuple> *GetCenters(void);
+  bool GetLipidEnv(int index, vector<triple> &lpos, atomlist &indices,double cutoff,bool strict);
+  vector<triple> *GetDirectors(void);
+  vector<triple> *GetCenters(void);
   void PrintNodes();
   
 private:
   vector<LipidTopology> thelipids;
-  vector<tuple> thedirectors;
+  vector<triple> thedirectors;
   vector< node>  indexnodes;
-  vector<tuple> centers;
+  vector<triple> centers;
 };
 
 void LipidDirectors::PrintNodes()
@@ -138,13 +138,13 @@ bool LipidDirectors::Evaluate(SnapShot* current)
   for( int i=0;i!=indexnodes.size();i++)
   {
     string id=indexnodes[i].name;
-    vector<tuple> pos1;
-    vector<tuple> pos2;
-    tuple center;
+    vector<triple> pos1;
+    vector<triple> pos2;
+    triple center;
     while(id==indexnodes[i].name && i!=indexnodes.size())
     {
      // for(int k=0;k!=indexnodes[i].indices.size();k++) cout << indexnodes[i].indices[k] << endl;
-      tuple pos=GetIndWAvgPos(indexnodes[i].indices, indexnodes[i].masses,current,true);
+      triple pos=GetIndWAvgPos(indexnodes[i].indices, indexnodes[i].masses,current,true);
   //    cout << "CENTER" << indexnodes[i].center << endl;
       switch (indexnodes[i].center)
       {
@@ -160,7 +160,7 @@ bool LipidDirectors::Evaluate(SnapShot* current)
     }
     i--;
 //    cout << "POS1" << pos1.size() << " POS2 " << pos2.size() << endl;
-   tuple o1=pos1[0],o2=pos2[0];
+   triple o1=pos1[0],o2=pos2[0];
 
     for(int j=1;j!=pos1.size();j++)
     {
@@ -171,7 +171,9 @@ bool LipidDirectors::Evaluate(SnapShot* current)
     pos1[0]=pos1[0]/pos1.size();
     pos2[0]=pos2[0]/pos2.size();
   
-    thedirectors[globalcount]=boxdist(pos2[0],pos1[0]);
+//    thedirectors[globalcount]=boxdist(pos2[0],pos1[0]);
+        thedirectors[globalcount]=boxdist(pos1[0],pos2[0]);
+
   //  thedirectors[globalcount].print();
     thedirectors[globalcount]=thedirectors[globalcount]/thedirectors[globalcount].abs();
     centers[globalcount]=center;
@@ -181,19 +183,19 @@ bool LipidDirectors::Evaluate(SnapShot* current)
   return true;
 }
 
-vector< tuple >* LipidDirectors::GetDirectors(void)
+vector< triple >* LipidDirectors::GetDirectors(void)
 {
  if(thedirectors.size()==0) return NULL;
  return &thedirectors;
 }
 
-vector< tuple >* LipidDirectors::GetCenters(void)
+vector< triple >* LipidDirectors::GetCenters(void)
 {
  if(centers.size()==0) return NULL;
  return &centers;
 }
 
-bool LipidDirectors::GetLipidEnv(int index, vector< tuple >& lpos, atomlist& indices, double cutoff=25, bool strict=false)
+bool LipidDirectors::GetLipidEnv(int index, vector< triple >& lpos, atomlist& indices, double cutoff=25, bool strict=false)
 {// CUTOFF 15
   list<pair<double,int> > memory(0);
   double worst=0;
@@ -206,21 +208,24 @@ bool LipidDirectors::GetLipidEnv(int index, vector< tuple >& lpos, atomlist& ind
       if(memory.size() < 2*sz || diff < worst)
       {
       if(diff> worst) worst=diff;
-      memory.push_back(make_pair<double,int>(diff,i));
+      memory.push_back(make_pair(diff,i));
       }
     }
   }
+
   if(memory.size()<sz && strict) return false;
   memory.sort();
   if(memory.size()>3*sz) memory.resize(sz*3);
   int oldind=-1000;
   for (list< pair <double, int> >::iterator it = memory.begin(); it != memory.end(); it++)
-    { 
+    {
           int ind=(*it).second;
       double sprod=(thedirectors[index]*thedirectors[ind]);
-      if(sprod < 0.1) {memory.erase(it);it--;}
+      if(sprod < 0.1) {
+	      list< pair <double, int> >::iterator kill=it; it--;
+	      memory.erase(kill);}
     }
-//    cout << "memory " << memory.size();
+ //   cout << "memory " << memory.size();
 
   if(memory.size()<sz && strict || memory.size() < 6) {//cout << "FAIL" << endl ;
     return false;}
