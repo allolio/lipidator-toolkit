@@ -14,6 +14,8 @@ INCLUDE_DIRECTORIES("kiss_fft130")
 link_directories(".")
 cmake_policy(SET CMP0015 NEW)
 find_package(Eigen3 REQUIRED)
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/.")
+find_package(XDR REQUIRED)
 include_directories(EIGEN3_INCLUDE_DIR)
     cmake_minimum_required(VERSION 2.8)
 
