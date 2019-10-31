@@ -13,7 +13,7 @@ typedef float xtc_cor;
 #define SQR(x) ((x)*(x))
 #endif
 
-//GPL ON TAKEN FROM GROMACS 
+//GPL ON
 
 static const int magicints[] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -661,7 +661,7 @@ int readatoms(XDR *xdrs,  vector<Atom> &vatoms, int *size, float *precision) {
     
     return 1;
 }
-// (c) Christoph Allolio GPL 
+// GPL OFF
 
 class XTCFile : public TrajecFile
 {   
@@ -749,7 +749,7 @@ vatoms.resize(atoms+3);
      vatoms[i].type=anames[i];
   }
   SnapShot snap;
- lsnaps.insert(lpos,make_pair<SnapShot,int>( snap,fpos));
+ lsnaps.insert(lpos,make_pair( snap,fpos));
    lpos--; 
    ((*lpos).first).SnapOverwrite(vatoms,false,true);
    fpos++;
@@ -790,6 +790,7 @@ void XTCFile::setAtomType(atomlist &index, string name)
    {
      anames[index[i]]=name;
    }
+   hasnames=true;
    return;   
 }
 
@@ -864,7 +865,7 @@ bool XTCFile::forwardframe()
       }
     }
    }  
-
+  return false;
 }
 
 bool XTCFile::GroAtomTypes(string Filename,int column)
@@ -884,9 +885,10 @@ bool XTCFile::GroAtomTypes(string Filename,int column)
    anames[i]=toks[column];
    if(i>9998 && i<100000) anames[i].resize(anames[i].size()-5);
    hasnames=true;
-  // cout << anames[i] << endl;
+//   cout << anames[i] << endl;
   }
   input.close();
+  return true;
 }
 
 int  XTCFile::filebybytes()

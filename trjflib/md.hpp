@@ -1,5 +1,5 @@
 // (c) 2010-2017 CdA Christoph Allolio
-// Licensed under GPL v.3
+
 #ifndef HAVE_CONFIG
 #include"config.hpp"
 #endif
@@ -38,8 +38,8 @@ struct Atom
                                }
 string type;
 int  num;
-tuple pos;
-tuple vel;
+triple pos;
+triple vel;
 void *extended;
 int szextended;
 //    long int cout;
@@ -144,7 +144,7 @@ class SnapShot
       if(pbc && setpbc==false) natoms+=3;
       return true;
     }
-    bool AddVel(int index,tuple &vel)
+    bool AddVel(int index,triple &vel)
     {
       if(index>=vatoms.size()) return false;
       veloc=true;
@@ -171,15 +171,15 @@ class SnapShot
     }
       bool haspbc()
     {return pbc;}
-    bool GetPbc(tuple *boxdim)
+    bool GetPbc(triple *boxdim)
     {
       if((vatoms[vatoms.size()-3].pos.x*vatoms[vatoms.size()-2].pos.y) ==0) { cerr << "Invalid Box" << endl; return false;}
-      //tuple pbc;
+      //triple pbc;
       boxdim->z=vatoms[vatoms.size()-1].pos.z;
       boxdim->y=vatoms[vatoms.size()-2].pos.y;
       boxdim->x=vatoms[vatoms.size()-3].pos.x;
       //pbc.print();
-      //memcpy(&pbc,boxdim,sizeof(tuple));
+      //memcpy(&pbc,boxdim,sizeof(triple));
       return true;
         }
         
@@ -310,13 +310,13 @@ class CPMDTrajFile : public TrajecFile
 class Trajectory
 {
   public:
-   Trajectory() {theTraj.clear(); spos=theTraj.begin();xyz=NULL;curate=false;  fullpbc=false;
+   Trajectory() {theTraj.clear(); spos=theTraj.begin();xyz=NULL;curate=false; addvirtual=false; fullpbc=false; triple dim; dim.x=1e9; dim.y=1e9;dim.z=1e9;setBoxDim(dim,false);
 }
    Trajectory(TrajecFile *file)
    {
-   xyz=file;curate=false;fullpbc=false;
+   xyz=file;curate=false;fullpbc=false;triple dim; addvirtual=false; dim.x=1e9; dim.y=1e9;dim.z=1e9;setBoxDim(dim,false);
    }
-   void setBoxDim(tuple dim, bool cur=true)
+   void setBoxDim(triple dim, bool cur=true)
    {
     
     boxdim=dim; curate=cur; fullpbc=false; }
@@ -324,6 +324,7 @@ class Trajectory
    { boxdim=boxdim*0; 
      boxmatrix=box;
      inverse=box.inv();
+     fullpbc=true;
    }
    bool AddSnapShot(SnapShot s)
     {
@@ -359,6 +360,7 @@ class Trajectory
    //   cout << "BOXDIM" << boxdim.x << "cur " << curate << endl;
       
      }
+      if(addvirtual) (vtatoms)(s,this,vtatomdata);
       if(curate) curateSnapshot();
       return *s;
     }
@@ -397,23 +399,37 @@ class Trajectory
        else { current->GetFullPbc(&boxmatrix); inverse=boxmatrix.transpose().inv();}
         }
       if(curate) curateSnapshot();
+      if(addvirtual) (vtatoms)(s,this,vtatomdata);
       return *s;
     }
     SnapShot& Frame(int n) 
     { SnapShot *s;
       int i=0; //Curation missing
-      if(xyz==NULL) for(spos=theTraj.begin();spos!=theTraj.end();spos++) {i++;if(i==n) { s=&(*spos); current=s; 	  if (current->haspbc())
-       {
+      if(xyz==NULL) 
+	for(spos=theTraj.begin();spos!=theTraj.end();spos++) 
+	{i++;
+	  if(i==n) { 
+	  s=&(*spos); current=s; 	  
+	  if (current->haspbc())
+	    {
 	       if(!fullpbc)
-      current->GetPbc(&boxdim);
-       else { current->GetFullPbc(&boxmatrix); inverse=boxmatrix.transpose().inv(); }
-        }
+	       current->GetPbc(&boxdim);
+	       else { current->GetFullPbc(&boxmatrix); inverse=boxmatrix.transpose().inv(); }
+	    }
+            if(addvirtual) (vtatoms)(current,this,vtatomdata);
       if(curate) curateSnapshot();
-     return *s; } }
+      return *s; } }
       else
       {
-	 s=&(xyz->GetSnap(n));
-      }
+	 current=&(xyz->GetSnap(n));
+	 if(current->haspbc())
+	 {
+	 if(!fullpbc) current->GetPbc(&boxdim);
+         else { current->GetFullPbc(&boxmatrix); inverse=boxmatrix.transpose().inv();}
+	      }}
+         if(addvirtual) (vtatoms)(current,this,vtatomdata);
+	 if(curate) curateSnapshot();
+	 return *current;
     }
     void setCutback(bool cut)
     {
@@ -422,6 +438,7 @@ class Trajectory
     bool FullPbc(bool fpbc=true)
     {
       fullpbc=fpbc; curate=false;
+      return fpbc;
     }
     bool BoxAngles()
     {
@@ -431,7 +448,7 @@ class Trajectory
      if(xyz==NULL) spos=theTraj.begin(); 
      else xyz->First();
     }
-    tuple& GetDimensions()
+    triple& GetDimensions()
     { return boxdim;}
     Matrix3 & GetBoxMat( Matrix3 **mat=NULL)
     {
@@ -442,6 +459,14 @@ class Trajectory
       }
       else
       {cerr << "No Fullpbc Box" << endl;  	return boxmatrix;};
+    }
+      bool setVirtualAtoms(int (*pt2Func)(SnapShot *s,Trajectory *t, void *statdat), void *statdat)
+    {
+    if(pt2Func==NULL || statdat==NULL) return false;
+    vtatoms=pt2Func;
+    vtatomdata=statdat;
+    addvirtual=true;
+    return true;
     }
     ~Trajectory() { theTraj.clear();}
     bool SaveTo(string filename)
@@ -455,6 +480,7 @@ class Trajectory
       while(true)
      {
       snap=NextFrame();
+      if(addvirtual) (vtatoms)(&snap,this,vtatomdata);
       if(snap.Valid()) snap.toStream(out);
       else {break;}
      }
@@ -485,12 +511,15 @@ class Trajectory
       *current=snap;
     }
   bool fullpbc;
+  bool addvirtual;
   list<SnapShot> theTraj;
   list<SnapShot>::iterator spos;
-  tuple boxdim;
+  triple boxdim;
   Matrix3 boxmatrix;
   Matrix3 inverse;
   bool curate;
+  int (*vtatoms)(SnapShot *c, Trajectory *t, void* statdat);
+  void *vtatomdata;
   SnapShot *current;
   TrajecFile *xyz;
 };
@@ -545,8 +574,8 @@ class Analyzer
 	//else outerpair.push_back(make_pair< int, int> (near[1],near[0]));
 	for(int i3=0;i3!=near.size();i3++)
 	   if(coord[i2]!=near[i3]){
-	 if(coord[i2] < near[i3] ) outerpair.push_back(make_pair< int, int> (coord[i2],near[i3]));
-	 else outerpair.push_back(make_pair< int, int> (coord[i2],near[i3]));} 
+	 if(coord[i2] < near[i3] ) outerpair.push_back(make_pair(coord[i2],near[i3]));
+	 else outerpair.push_back(make_pair(coord[i2],near[i3]));} 
 	}
 	 //}
       outerpair.sort();
@@ -554,8 +583,8 @@ class Analyzer
       
       for (list< pair <int, int> >::iterator it = outerpair.begin(); it != outerpair.end(); it++)
 	{
-	  tuple ab;
-	  tuple ac;
+	  triple ab;
+	  triple ac;
 	//  cout << (*it).first << " " <<(*it).second << endl;
 
 	  ab=boxdist(snap.GetAtom((*it).first).pos,a.pos);
@@ -629,20 +658,20 @@ class Analyzer
     for(int i2=0;i2!=howmany;i2++)
     {
        Atom b=snap.GetAtom(towhat[i2]);
-       tuple dist=boxdist(a.pos,b.pos);
+       triple dist=boxdist(a.pos,b.pos);
        double ab=dist.abs();
-       memory.push_front(make_pair<double,int>(ab,towhat[i2]));
+       memory.push_front(make_pair(ab,towhat[i2]));
     }
     memory.sort();
     
     for (int i=howmany;i!=towhat.size();i++)
      {
        Atom b=snap.GetAtom(towhat[i]);
-       tuple dist=boxdist(a.pos,b.pos);
+       triple dist=boxdist(a.pos,b.pos);
        double ab=dist.abs();
        if( ab<memory.back().first )
        {
-       memory.push_front(make_pair<double,int>(ab,towhat[i]));
+       memory.push_front(make_pair(ab,towhat[i]));
        memory.sort();
        memory.pop_back();
        //if (ab<memory.back().first) memory.push_back(make_pair<double,int>(ab,i)); memory.pop_front();
@@ -665,7 +694,7 @@ class Analyzer
      {
        Atom &b=snap.GetAtom(ofwhat[i]);
   //     double bx=dist.abs();
-       tuple dist=boxdist(b.pos,a.pos);
+       triple dist=boxdist(b.pos,a.pos);
        double ab=dist.abs();
        
 //        cout << ab << " " << bx << " " << endl;
@@ -690,7 +719,7 @@ class Analyzer
       for (int i=0;i!=ofwhat.size();i++)
      {
        Atom &b=snap.GetAtom(ofwhat[i]);
-             tuple dist=boxdist(b.pos,a.pos);
+             triple dist=boxdist(b.pos,a.pos);
  
        double ab=dist.abs();
        if(coff>ab){ theMols.push_back(atmol[ofwhat[i]]); }
@@ -733,6 +762,20 @@ class Analyzer
     return molatoms;
    }
    
+    atomlist IndextoMolecules(atomlist &index)
+   {
+     if(!hassplit) SplitintoMolecules();
+     atomlist molecules;
+     molecules=index;
+   //cout << " atmol" << atmol.size() <<endl;
+   //cout << " molecules " << molecules.size() <<endl;
+   for(int i=0;i!=index.size();i++) molecules[i]=atmol[index[i]];
+       sort(molecules.begin(), molecules.end());
+        vector<int>::iterator new_end = unique(molecules.begin(), molecules.end());
+        molecules.erase(new_end,molecules.end());
+    return molecules;
+   }
+   
    double GetCN(double distance)
     {
      
@@ -754,7 +797,7 @@ class Analyzer
      const double au2J=4.3597439 * (10^-18);
      const double cfac=315774.65;
      double Ekin,cmass, Temp;
-     tuple rvel; // Resulting Velocity
+     triple rvel; // Resulting Velocity
      double Ekincent=0; double totmasscent; // Resulting Kinetic Energy
      double cmassekin=0;double Ekininst=0;
      unsigned long int frames=0;
@@ -806,10 +849,10 @@ class Analyzer
    }
    
    
-   tuple GetComVel(SnapShot *s=NULL)
+   triple GetComVel(SnapShot *s=NULL)
    {
      if(s==NULL) s=&traj->Current();
-     tuple rvel;
+     triple rvel;
      rvel=rvel*0;
      double totmass=0;
      for(int i=0;i!=s->GetAtoms();i++)
@@ -824,10 +867,10 @@ class Analyzer
    }
  
   
-   tuple GetComPos(SnapShot *s=NULL)
+   triple GetComPos(SnapShot *s=NULL)
    {
      if(s==NULL) s=&(traj->Current());
-     tuple rpos;
+     triple rpos;
         rpos.x=0;rpos.y=0;rpos.z=0;
      double totmass=0;
      for(int i=0;i!=s->GetAtoms();i++)
@@ -841,10 +884,10 @@ class Analyzer
      return rpos;
    }
  
-  tuple GetIndComPos(atomlist &indices,SnapShot *s=NULL,bool wrap=false)
+  triple GetIndComPos(atomlist &indices,SnapShot *s=NULL,bool wrap=false)
    {
      if(s==NULL) s=&(traj->Current());
-     tuple rpos,opos;
+     triple rpos,opos;
      rpos.x=0;rpos.y=0;rpos.z=0;
      double totmass=0;
      opos=s->GetAtom(indices[0]).pos;
@@ -852,8 +895,8 @@ class Analyzer
      {  
      Atom &a=s->GetAtom(indices[i]);
      double currmass=masses.GetIsoMass(a.type);
-  //   cout << "Y" << rpos.x << " " ;
      // Correct for PBC JUMP
+
     if(!wrap) rpos=rpos+a.pos*currmass; 
     else   rpos=rpos+(opos+boxdist(a.pos,opos))*currmass;
    //   cout <<" X "<<  a.pos.x << " " << currmass << " >" << rpos.x <<"< " ;
@@ -863,12 +906,34 @@ class Analyzer
      rpos=rpos/totmass;
      return rpos;
    }
-   
-   
-    tuple GetIndAvgPos(atomlist &indices,SnapShot *s=NULL,bool wrap=false)
+      triple GetIndWAvgPos(atomlist &indices, vector<double> &masses,SnapShot *s=NULL,bool wrap=false)
    {
      if(s==NULL) s=&(traj->Current());
-     tuple rpos,opos;
+     triple rpos,opos;
+     rpos.x=0;rpos.y=0;rpos.z=0;
+     if(wrap) opos=s->GetAtom(indices[0]).pos;
+     double totmass=0;
+     for(int i=0;i!=indices.size();i++)
+     {
+     Atom &a=s->GetAtom(indices[i]);
+  //   cout << "Y" << rpos.x << " " ;
+     // Correct for PBC JUMP
+      if(!wrap) rpos=rpos+a.pos*masses[i];
+      else   rpos=rpos+(opos+boxdist(a.pos,opos))*masses[i];
+  //    cout <<" X "<<  a.pos.x << " " << masses[i] << " >" << rpos.x <<"< " ;
+           totmass+=masses[i];
+     }
+          rpos=rpos/totmass;
+
+//     cout  << " " << rpos.x << " BO " << endl;
+     return rpos;
+   }
+
+ 
+    triple GetIndAvgPos(atomlist &indices,SnapShot *s=NULL,bool wrap=false)
+   {
+     if(s==NULL) s=&(traj->Current());
+     triple rpos,opos;
      rpos.x=0;rpos.y=0;rpos.z=0;
      if(wrap) opos=s->GetAtom(indices[0]).pos;
      for(int i=0;i!=indices.size();i++)
@@ -883,30 +948,6 @@ class Analyzer
 //     cout << totmass << " " << rpos.x << " BO " << endl;
      return rpos/indices.size();
    }
- 
-     tuple GetIndWAvgPos(atomlist &indices, vector<double> &masses,SnapShot *s=NULL,bool wrap=false)
-   {
-     if(s==NULL) s=&(traj->Current());
-     tuple rpos,opos;
-     rpos.x=0;rpos.y=0;rpos.z=0;
-     if(wrap) opos=s->GetAtom(indices[0]).pos;
-     double totmass=0;
-     for(int i=0;i!=indices.size();i++)
-     {  
-     Atom &a=s->GetAtom(indices[i]);
-  //   cout << "Y" << rpos.x << " " ;
-     // Correct for PBC JUMP
-      if(!wrap) rpos=rpos+a.pos*masses[i]; 
-      else   rpos=rpos+(opos+boxdist(a.pos,opos))*masses[i];
-  //    cout <<" X "<<  a.pos.x << " " << masses[i] << " >" << rpos.x <<"< " ;
-           totmass+=masses[i];
-     }
-          rpos=rpos/totmass;
-
-//     cout  << " " << rpos.x << " BO " << endl;
-     return rpos;
-   }
- 
  
    double GetIndMass(atomlist &indices,SnapShot *s=NULL)
    {
@@ -939,9 +980,9 @@ class Analyzer
        Atomindex=snap.GetIndicesOfType(Atomtypes[j]);
          for(int i=0;i!=Atomindex.size();i++)
 	{
-	Atom a=snap.GetAtom(Atomindex[i]); tuple *tup;
+	Atom a=snap.GetAtom(Atomindex[i]); triple *tup;
 	if(a.extended==NULL) {cerr << "No Forces Found" << endl; return false;}
-        tup=(tuple*) a.extended;
+        tup=(triple*) a.extended;
 	hist << a.type  <<"  \t " << a.pos.x << "  \t " << a.pos.y << "  \t " << a.pos.z << "  \t " << tup->x*cf << "  \t " << tup->y*cf <<  "   \t " << tup->z*cf << "  \t" << endl;
 	}
 	
@@ -983,22 +1024,22 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
 	int size1,size2;
 	float ovrlp;
 
-     for(unsigned int i=0;i!=snap.GetAtoms()-1;i++){
+     for(unsigned int i=0;i!=snap.GetAtoms();i++){
 		float shortcut=coff;int conn=-1;
-	for(unsigned int i2=i+1;i2!=snap.GetAtoms();i2++)
+	for(unsigned int i2=i+1;i2<snap.GetAtoms();i2++)
 	{
 	//fparam1=tio.ReadFileParams(filenames[i] + ".out");
 	//fparam2=tio.ReadFileParams(filenames[i2] + ".out");
 	
 	Atom a=snap.GetAtom(i);
 	Atom b=snap.GetAtom(i2);
-        std::tuple ab;
+        std::triple ab;
          ab=boxdist(a.pos,b.pos);
         double dist=ab.abs();
 	// In den Graphen Einfügen:
 	//	if(a.type!="H") {
   
-        if( dist<=binfo.GetBondMax(a.type,b.type)) { add_edge(i, i2,EdgeProperty(ovrlp), G);}
+        if( dist<=binfo.GetBondMax(a.type,b.type)) { add_edge(i, i2,EdgeProperty(ovrlp), G);conn=1;}
 		std::vector<int>::size_type i;
 	  
 	//}
@@ -1007,7 +1048,11 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
 		
 	//if (conn!=-1)
 	//add_edge(i, conn,EdgeProperty(ovrlp), G);
-       }}
+       }
+       if (conn==-1)
+	   add_edge(i, i,EdgeProperty(ovrlp), G);
+       //  if(conn==-1) add_vertex(G);
+    }
 	std::vector<int> component(num_vertices(G));
 	 num = connected_components(G, &component[0]);
 /*	for(int i=0;i!=component.size();i++)
@@ -1072,12 +1117,68 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
       Atom b=snap.GetAtom(atomb);
       return boxdist(a.pos,b.pos).abs();
     }
-    bool CalcIndexRdf(vector<int> indexa, vector<int> indexb, bool same=false)
+    bool  GridVolumeNorm(vector<int> indexa, vector<double> &normvec, double strde=0.5)
+    {
+                SnapShot s=traj->Current();
+        //stride=0.5;
+        triple box=traj->GetDimensions();
+        triple boxdots=box/strde;
+        triple bins=boxdots;
+               int counter=0;
+        bins.x=round(bins.x);bins.y=round(bins.y);bins.z=round(bins.z);
+        if(boxdots.x>1e4) {cerr << "Too Many Gridpoints" << endl; return false;}
+        vector <double> weight(box.x/strde);
+        cout << "stride " << strde << endl;
+        bins.print();
+    //    box.print();
+     //   exit(0);
+        while(s.Valid())
+        {
+        counter++;
+        box=traj->GetDimensions();
+        triple stride; stride.x=box.x/bins.x;stride.y=box.x/bins.y;stride.z=box.z/bins.z;
+        for(int x=0;x<bins.x;x++)
+        {
+            for(int y=0;y<bins.y;y++)
+            {
+                for(int z=0;z<bins.z;z++)
+                {
+                    double mindist=1e9;
+                    #pragma omp parallel for
+                    for(int i=0;i<indexa.size();i++)
+                    {   
+                        triple t;
+                        t.x=(x+0.5)*stride.x;t.y=(y+0.5)*stride.y;t.z=(z+0.5)*stride.z;
+                        double dist=boxdist(s.GetAtom(indexa[i]).pos,t).abs();
+#pragma omp critical
+                        if(dist<mindist) mindist=dist;
+                    }
+//     cout<< (int)(mindist/stride) << endl;
+                     weight[(int)(mindist/strde)]+=stride.x*stride.y*stride.z;
+               //     cout << mindist << endl;
+                }
+            }
+        }
+        s=traj->NextFrame();
+        cout << "*" << flush;
+        }
+        for(int i=0;i!=weight.size();i++)
+        {
+         weight[i]/=(double) counter;
+        // weight[i]*=2.0;
+       //  cout << (i+0.5)*strde << " \t " << weight[i] << endl;
+        }
+        normvec=weight;
+        return true;
+     }
+    
+    bool CalcSurfaceRdf(vector<int> &indexa, vector<int> &indexb,double strde=0.5)
     {
      atom1=indexa.size();
      atom2=indexb.size();
-     // Inserted here May2012
+     stride=strde;
      double cutoff;
+     boxdim=traj->GetDimensions();
      if(boxdim.x < boxdim.y && boxdim.x< boxdim.z) cutoff=boxdim.x/2;
       else if(boxdim.y < boxdim.x && boxdim.y< boxdim.z) cutoff=boxdim.y/2;
       else cutoff=boxdim.z/2;
@@ -1087,12 +1188,66 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
         histogram.clear();
       histogram.resize(nbins);
             for(int i=0;i!=nbins;i++) histogram[i]=0;
-     cout << " Atoms Type 1 " << atom1 << " Type 2 " << atom2 << endl;
-     // Should be by convention
-  //   traj->First();
-      SnapShot snap; 
+       boxdim=boxdim*0;
+      SnapShot snap=traj->Current(); 
+      while(snap.Valid())	
+      { //cout << "Frame Entered  Atoms:" << snap.GetAtoms() << endl;
+        frames++;
+        boxdim=boxdim+traj->GetDimensions();
+	for (int j=0;j!=atom2;j++)
+	{
+	  Atom b=snap.GetAtom(indexb[j]);
+	  double minim=1e9;
+#pragma omp parallel for
+	  for (int i=0;i<atom1;i++)
+	  { Atom a=snap.GetAtom(indexa[i]);
+	    triple diff=boxdist(a.pos,b.pos);
+	    double r=diff.abs();
+#pragma omp critical
+	    if(minim>r) minim=r;
+	  }
+	    if(minim<cutoff) 
+	      {
+	      if(int(minim/stride)>(nbins)) {cout << "Histogram Fuckup! --- Crashing!" << endl; exit(1);}
+	      else { int bin=int(minim/stride);   histogram[bin]++;}
+	      }          
+        } 
+        snap=traj->NextFrame();
+      }
+       boxdim=boxdim/frames;
+       double volume=boxdim.x*boxdim.y*boxdim.z;
+       double region= cutoff*2;
+    //   if(!same)
+          normfactor = (volume)/
+          (atom2*frames);
+         //(region*region*region stride*stride*stride*
+  //     cout <<" Pi " << PI << "Frames " << frames << " atom1 " <<  atom1 << " atom2 "<< atom2 <<  " Region " << region<< endl ; 
+
+      // Test:
+    }
+    bool CalcIndexRdf(vector<int> &indexa, vector<int> &indexb, double strde=0.2, bool same=false)
+    {
+     atom1=indexa.size();
+     atom2=indexb.size();
+     stride=strde;
+     // Inserted here May2012
+     double cutoff;
+     triple boxdim=traj->GetDimensions();
+     if(boxdim.x < boxdim.y && boxdim.x< boxdim.z) cutoff=boxdim.x/2;
+      else if(boxdim.y < boxdim.x && boxdim.y< boxdim.z) cutoff=boxdim.y/2;
+      else cutoff=boxdim.z/2;
+      // Endinsert
+   //   cout << "CUtoff" << cutoff<< " " << nbins << endl;
+     nbins=int(cutoff/stride)+1;
+     frames=0;
+        histogram.clear();
+      histogram.resize(nbins);
+            for(int i=0;i!=nbins;i++) histogram[i]=0;
+     SnapShot snap; 
+      boxdim=boxdim*0;
       while((snap=traj->NextFrame()).Valid())	
       { //cout << "Frame Entered  Atoms:" << snap.GetAtoms() << endl;
+        boxdim=boxdim+traj->GetDimensions();
         frames++;
 	for (int j=0;j!=atom1;j++)
 	{
@@ -1100,7 +1255,7 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
 	  
 	  for (int i=0;i!=atom2;i++)
 	  { Atom b=snap.GetAtom(indexb[i]);
-	    tuple diff=boxdist(a.pos,b.pos);
+	    triple diff=boxdist(a.pos,b.pos);
 	    double r=diff.abs();
 	    if(r<cutoff) 
 	      {
@@ -1110,34 +1265,45 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
 	  }
         }           
       }
-    
-       double region= cutoff*2;
-       if(!same)
-         normfactor = (region*region*region)/
-          (4.0*PI*stride*stride*stride*atom2*atom1*frames);
+       boxdim=boxdim/frames;
+       double volume=boxdim.x*boxdim.y*boxdim.z;
+    //   double region= cutoff*2; volume=region*region*region;
+     if(!same) normfactor = (volume)/(4.0*PI*stride*stride*stride*atom2*atom1*frames);
      else
-      normfactor = (region*region*region)/
+     { normfactor = (volume)/
       (2.0*PI*stride*stride*stride*atom2*atom1*frames);
+      cout << "ATOMS ARE SAME " << endl;
+     }
   //     cout <<" Pi " << PI << "Frames " << frames << " atom1 " <<  atom1 << " atom2 "<< atom2 <<  " Region " << region<< endl ; 
-
+     return true;
       // Test:
     }
     /**
      * Use this for RDFs - it corrects for the Spherical Coordinates 1/r^2
      **/
-    bool PrintHistogram (ostream &hist)
+    bool PrintHistogram (ostream &hist,bool cn=false, int dimens=3)
     {
+        double kz=0;
       for(int i=0; i<histogram.size()-1;i++)
-    	hist << (i+0.5)*stride << "     " << histogram[i]*normfactor/((i+0.5)*(i+0.5)) << endl;
+      {   double binvol;
+          if(dimens==3) binvol=((i+1)*(i+1)*(i+1)-(i*i*i))/3.0;
+          else if(dimens==2) binvol=((i+1)*(i+1)-(i*i));
+    	hist << (i+0.5)*stride << "     " << histogram[i]*normfactor/binvol;
+        if(cn==true) { kz+=histogram[i]/atom1/frames ;  hist << "     "  << kz;  }
+    	hist << endl; //normfactor/((i+0.5)*(i+0.5))
+      }
       return true;
     }
     /**
      * Do not Use this for RDFs - it uses rectangular coordinates - Everything but RDF use this
      **/
-     bool PrintHistogramR (ostream &hist,double offset=0)
+     bool PrintHistogramR (ostream &hist,double offset=0,vector<double> *dynorm=NULL)
     {
       for(int i=0; i<histogram.size()-1;i++)
+      {if(dynorm==NULL)
     	hist << (i+0.5)*stride+offset << "     " << histogram[i]* normfactor << endl;
+        else hist << (i+0.5)*stride+offset << "     " << histogram[i]* normfactor /dynorm->at(i) << endl;
+      }
       return true;
     }
     
@@ -1150,9 +1316,9 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
 	cout << "  >>>NewFrame<<<" << endl;
 	for(int i=0;i!=snap.GetAtoms();i++)
 	{
-	Atom a=snap.GetAtom(i); tuple *tup;
+	Atom a=snap.GetAtom(i); triple *tup;
 	if(a.extended==NULL) {cerr << "No Forces Found" << endl; return false;}
-        tup=(tuple*) a.extended;
+        tup=(triple*) a.extended;
 	hist << a.type <<"  \t " << tup->x << "  \t " << tup->y <<  "   \t " << tup->z << "  \t" << endl;
 	}
 	
@@ -1160,10 +1326,10 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
     }
     /** Gives the Center of the Molecule, starting with the atom closest to the box center cpos
      **/
-    void MolCenter(int mol, SnapShot &s, tuple *cpos=NULL, double cutoff=0)
+    void MolCenter(int mol, SnapShot &s, triple *cpos=NULL, double cutoff=0)
     {
       if(cutoff==0) cutoff=90E90;
-      tuple pos,closer;
+      triple pos,closer;
       atomlist molatoms=GetMoleculeNo(mol);
       if(cpos==NULL) 
       {
@@ -1183,17 +1349,17 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
       if(closest<=cutoff)
       {
       closer= s1.GetAtom(theatom).pos; 
-      tuple relbas=boxdist(closer,pos);
+      triple relbas=boxdist(closer,pos);
       for(int i=0;i!=molatoms.size();i++)
       { Atom &a= s1.GetAtom(molatoms[i]);
 	pos=a.pos;
-      tuple fpos=boxdist(pos,closer)+relbas;
+      triple fpos=boxdist(pos,closer)+relbas;
       a.pos=fpos;
       s.AddAtom(a);
       }}
     }
     
-    SnapShot MolWrap(tuple centerpos, double cutoff=0)
+    SnapShot MolWrap(triple centerpos, double cutoff=0)
     {
       SnapShot result;
       if(!hassplit)SplitintoMolecules();
@@ -1203,11 +1369,11 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
       }
       return result;
     }
-   inline tuple boxdist(tuple a, tuple b)
+   inline triple boxdist(triple a, triple b)
    {
      if(!traj->BoxAngles()) { return boxdiff(a-b);}
      Matrix3 *inv;
-  /*   tuple add100;
+  /*   triple add100;
      add100.x=100;
      add100.y=add100.x;
      add100.z=add100.y;*/
@@ -1225,25 +1391,25 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
     // check.print();
    //  cout << "INVERSE" << endl;
  //   inv->print();
-/*     tuple ax=a; ax.y=0;ax.z=0;
-     tuple ay=a; ay.x=0;ay.z=0;
-     tuple az=a; az.y=0;az.x=0;
-     tuple bx=b; bx.y=0;bx.z=0;
-     tuple by=b; by.x=0;by.z=0;
-     tuple bz=b; bz.y=0;bz.x=0;
+/*     triple ax=a; ax.y=0;ax.z=0;
+     triple ay=a; ay.x=0;ay.z=0;
+     triple az=a; az.y=0;az.x=0;
+     triple bx=b; bx.y=0;bx.z=0;
+     triple by=b; by.x=0;by.z=0;
+     triple bz=b; bz.y=0;bz.x=0;
 */
-     tuple as=(*inv)*a;
+     triple as=(*inv)*a;
     // as=as+add100;
 /*   as.x=as.x-round(as.x);
      as.y=as.y-round(as.y);
      as.z=as.z-round(as.z);*/
 
-  //   tuple as= ((*inv)*ax)+((*inv)*ay)+((*inv)*az);
+  //   triple as= ((*inv)*ax)+((*inv)*ay)+((*inv)*az);
  //   cout << "AS" << endl;
   //   as.print();
    //  cout << "BS" << endl;
-  //  tuple bs= ((*inv)*bx)+((*inv)*by)+((*inv)*bz);
-    tuple bs=(*inv)*b;
+  //  triple bs= ((*inv)*bx)+((*inv)*by)+((*inv)*bz);
+    triple bs=(*inv)*b;
       //  bs=bs+add100;
 
  /*    bs.x=bs.x-round(bs.x);
@@ -1251,7 +1417,7 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
      bs.z=bs.z-round(bs.z);*/
 
    // (bs).print();
-     tuple dist=as-bs;
+     triple dist=as-bs;
    //       cout << "DISTX" << endl;
    //  dist.print();
 
@@ -1264,9 +1430,9 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
      return box*dist;
      
    }
-   inline tuple boxdiff(tuple a)
+   inline triple boxdiff(triple a)
     {  
-      tuple &boxdim=traj->GetDimensions();
+      triple &boxdim=traj->GetDimensions();
      if(!traj->getCutback())
       {
 //	cout << "fmod" << endl;
@@ -1309,7 +1475,7 @@ typedef  boost::graph_traits<Graph>::vertex_iterator   v;
     int atom1;
     int atom2;
     int frames;
-    tuple boxdim;
+    triple boxdim;
     double normfactor;
     int nmol;
 };
@@ -1425,7 +1591,7 @@ SnapShot& TrajecFile::GetCurrentSnap()
 	     cout << "Warning: Current Frame " << fpos << " not cached - using first Frame!" << endl;
 	      #endif 
 	     snap=&GetSnap(0);
-	     lsnaps.insert(lpos,make_pair<SnapShot,int>(*snap,0));
+	     lsnaps.insert(lpos,make_pair(*snap,-1));
 
 	     return *snap;
    //if (lpos==lsnaps.end() || (*lpos).second<fpos) // Cached Frame N/A Forwarded Frame
@@ -1454,7 +1620,7 @@ bool TrajecFile::AddSnapshot(SnapShot &snap)
 if(frames==0) atoms=snap.GetAtoms();
 else if(atoms!=snap.GetAtoms()) return false;
 frames++;
-lsnaps.push_back(make_pair<SnapShot,int>(snap,frames));
+lsnaps.push_back(make_pair(snap,frames));
 return true;
 }
 
@@ -1524,7 +1690,7 @@ if(!hfile.is_open()) return false;
  cout << "parsing new frame" << endl;
 #endif
 SnapShot snap;
- lsnaps.insert(lpos,make_pair<SnapShot,int>(snap,fpos));
+ lsnaps.insert(lpos,make_pair(snap,fpos));
   lpos--;
 
  SnapShot &sn=(*lpos).first;
@@ -1549,7 +1715,7 @@ for(int i=0;i<atoms;i++)
    sn.vatoms[i].pos.z=atof(line[3].c_str());
    if(hasvelocities && htokens > 3)
    {
-    // tuple *vel=new(tuple);
+    // triple *vel=new(triple);
    sn.vatoms[i].vel.x=atof(line[4].c_str());
    sn.vatoms[i].vel.y=atof(line[5].c_str());
    sn.vatoms[i].vel.z=atof(line[6].c_str());
@@ -1615,19 +1781,19 @@ for(int i=0;i!=atoms;i++)
    {
    //    if(hasvelocities) cout << "Writing velocities" << endl;
 
-    // tuple *vel=new(tuple);
+    // triple *vel=new(triple);
    satoms[i].vel.x=atof(line[4].c_str())*au2v;
    satoms[i].vel.y=atof(line[5].c_str())*au2v;
    satoms[i].vel.z=atof(line[6].c_str())*au2v;
    }
    if(hasforces && htokens > 9)
    { //cout << "Extended Data = ?" << endl;
-     tuple t; // Force is in Atomic units
+     triple t; // Force is in Atomic units
      t.x=atof(line[7].c_str());
      t.y=atof(line[8].c_str());
      t.z=atof(line[9].c_str());
-     satoms[i].szextended=sizeof(tuple);
-     void *force=malloc(sizeof(tuple)); // Extended Quantity in CPMD Trajectories is Force!
+     satoms[i].szextended=sizeof(triple);
+     void *force=malloc(sizeof(triple)); // Extended Quantity in CPMD Trajectories is Force!
      memcpy(force,(void*) &t,sizeof(t));
      satoms[i].extended=force;
    }
@@ -1639,7 +1805,7 @@ for(int i=0;i!=atoms;i++)
   #endif
  //SnapShot snap;
  
- lsnaps.insert(lpos,make_pair<SnapShot,int>(SnapShot(satoms,hasvelocities),fpos));
+ lsnaps.insert(lpos,make_pair(SnapShot(satoms,hasvelocities),fpos));
   
   lpos--;
  fpos++;

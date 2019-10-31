@@ -34,7 +34,7 @@ bool ForceMap( SnapShot s1, SnapShot s2, double cf=1, string fname="vmd")
     for(int i=0;i!=s1.GetAtoms();i++)
 	{
 	 
-	Atom a=s1.GetAtom(i); tuple tup;
+	Atom a=s1.GetAtom(i); triple tup;
 	Atom b=s2.GetAtom(i); 
         tup=a.vel+b.vel*cf;
         //cout << tup.x << " " << tup.y << " " << tup.z << "  " << a.type << "  " << a.vel.x << " " << b.vel.x*cf << endl;
@@ -45,7 +45,7 @@ bool ForceMap( SnapShot s1, SnapShot s2, double cf=1, string fname="vmd")
 	for(int i=0;i!=s1.GetAtoms();i++)
 	{
 	 
-	Atom a=s1.GetAtom(i); tuple tup;
+	Atom a=s1.GetAtom(i); triple tup;
 	Atom b=s2.GetAtom(i); 
         tup=a.vel+b.vel*cf;
 	double thev= 15-((tup.abs()+loval)/(hival+loval)*15);
@@ -68,10 +68,10 @@ bool CalcRMS( SnapShot s1, SnapShot s2, double cf=1)
        
     for(int i=0;i!=s1.GetAtoms();i++)
 	{
-	tuple zero;
+	triple zero;
         zero=zero*0;
      
-	Atom a=s1.GetAtom(i); tuple tup;
+	Atom a=s1.GetAtom(i); triple tup;
 	Atom b=s2.GetAtom(i); 
         tup=a.vel+b.vel*cf;
         suma+=a.vel.abs()*a.vel.abs();
@@ -93,7 +93,7 @@ bool CalcRMS( SnapShot s1, SnapShot s2, double cf=1)
 
 bool CalcInterRMS( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtoms)
 {
-  tuple zero;
+  triple zero;
   zero=zero*0;  
   double sumsq=0,hival=0,sum=0,carbopr;
         cout.precision(6);
@@ -110,8 +110,8 @@ bool CalcInterRMS( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtom
      if(MoleculeAtoms[f]==frag) molecule.push_back(f); 
     }
     
-    tuple forcea=zero;
-    tuple forceb=zero;
+    triple forcea=zero;
+    triple forceb=zero;
   //  cout << "mol";
     for(int i=0;i!=molecule.size();i++)
 	{
@@ -122,7 +122,7 @@ bool CalcInterRMS( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtom
 	 forceb=forceb+b.vel*cf;
 	}
 //	cout << endl; 
-	tuple diff=(forcea+forceb);
+	triple diff=(forcea+forceb);
         sum=diff.abs();
 	if(sum>hival) {hival=sum;mol=frag;}
 	sumsq+=sum;
@@ -139,7 +139,7 @@ bool CalcInterRMS( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtom
           
  	return true;
 }
- tuple boxdiff(tuple a,double region)
+ triple boxdiff(triple a,double region)
     {   
         int indicator;
    if(a.x >= 0.5*region)
@@ -160,10 +160,10 @@ bool CalcInterRMS( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtom
 	return a;
     }
    
-bool CalcInterRMSCutoff( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtoms, int around, double cutoff, tuple box)
+bool CalcInterRMSCutoff( SnapShot s1, SnapShot s2, double cf, vector<int> MoleculeAtoms, int around, double cutoff, triple box)
 { // We calculate the Average Delta of Molecules inside cutoff except the one we are in!
   // box is for PBC
-   tuple zero;
+   triple zero;
   zero=zero*0;  
  
   double sumsq=0,hival=0,sum=0,carbopr;
@@ -187,9 +187,9 @@ bool CalcInterRMSCutoff( SnapShot s1, SnapShot s2, double cf, vector<int> Molecu
     // Check if inside cutoff
      bool evmol=false; 
     Atom center=s1.GetAtom(around);
-    tuple dcenter=zero;
-    tuple forcea=zero;
-    tuple forceb=zero;
+    triple dcenter=zero;
+    triple forcea=zero;
+    triple forceb=zero;
   
   //  cout << "mol";
     for(int i=0;i!=molecule.size();i++)
@@ -208,7 +208,7 @@ bool CalcInterRMSCutoff( SnapShot s1, SnapShot s2, double cf, vector<int> Molecu
 	    evmol=true;
 	  }
 	 /* ivec=boxdiff(a.pos,box.x);
-	  tuple jvec=boxdiff(center.pos,box.x);
+	  triple jvec=boxdiff(center.pos,box.x);
 	  dcenter=ivec-jvec;*/
 	  
         }
@@ -228,7 +228,7 @@ bool CalcInterRMSCutoff( SnapShot s1, SnapShot s2, double cf, vector<int> Molecu
 	}
 
 //	cout << endl; 
-	tuple diff=(forcea+forceb);
+	triple diff=(forcea+forceb);
         sum=diff.abs();
 	if(sum>hival) {hival=sum;mol=frag;}
 	sumsq+=sum;

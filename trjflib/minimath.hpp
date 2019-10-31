@@ -1,4 +1,3 @@
-
 template <class X, class Y> struct Function
 {
 public:
@@ -21,59 +20,71 @@ result=result*counter;
 return result;
 }
 
+unsigned long int dfac(unsigned long int i)
+{
+unsigned long int counter,result=i;
+if(i==0) return 1;
+for(counter=i-1;counter>0;counter-=2)
+{
+result=result*counter;
+}
+return result;
+}
+
+
 namespace std
 {
-struct tuple
-{
-  tuple()
+struct triple
+{ 
+  triple()
   {}
-  tuple(double *in)
+  triple(double *in)
   {
     x=*in;
     y=*(in+1);
     z=*(in+2);
   }
-  union{
-    double p[3];
+ union{
+  double p[3];
   struct {
   double x;
   double y;
   double z;
   };
   };
-    tuple operator-(tuple b)
-  { tuple t;
+    triple operator-(triple b)
+  { triple t;
      t.x=this->x-b.x;
      t.y=this->y-b.y;
      t.z=this->z-b.z;
      return t;}
-     tuple operator%(tuple b)
-  { tuple t;
+     triple operator%(triple b)
+  { triple t;
     t.x=this->y*b.z-this->z*b.y;
     t.y=this->z*b.x-this->x*b.z;
     t.z=this->x*b.y-this->y*b.x;
      return t;}
-     tuple operator+(tuple b)
-  { tuple t;
+     triple operator+(triple b)
+  { triple t;
      t.x=this->x+b.x;
      t.y=this->y+b.y;
      t.z=this->z+b.z;
      return t;}
-       tuple operator*(double b)
-  { tuple t;
+       triple operator*(double b)
+  { triple t;
      t.x=this->x*b;
      t.y=this->y*b;
      t.z=this->z*b;
      return t;}
-          tuple operator/(double b)
-  { tuple t;
+          triple operator/(double b)
+  { triple t;
      t.x=this->x/b;
      t.y=this->y/b;
      t.z=this->z/b;
      return t;}
   
      // Scalar Product
-        double operator*(tuple b)
+        double operator*(triple b)
      { double t=0;
      t+=x*b.x;
      t+=y*b.y;
@@ -83,9 +94,9 @@ struct tuple
    {
    return sqrt(x*x+y*y+z*z);
    }
-   tuple positive()
+   triple positive()
    {
-   tuple r;
+   triple r;
    r.x=fabs(this->x);
    r.y=fabs(this->y);
    r.z=fabs(this->z);
@@ -100,7 +111,7 @@ struct tuple
 
 struct Matrix3
 {
-  tuple row[3];
+  triple row[3];
   double p(int i,int j)
   {
     return this->row[i].p[j];
@@ -127,9 +138,9 @@ struct Matrix3
     return mat;    
   }
 
-  tuple operator*(tuple x)
+  triple operator*(triple x)
   { 
-    tuple a;
+    triple a;
     a.x = row[0]*x;
     a.y = row[1]*x;
     a.z = row[2]*x;
@@ -189,6 +200,42 @@ Matrix3 transpose(void)
 };
 }  
 
+double ALegendre(int m,int l, double x)
+{
+    // P^m_l −l ≤ m ≤ l
+    if(l<0) l++;
+    unsigned int labs=abs(l);
+    // P^m_m=
+    int mabs=abs(m);
+    double sfac=1.0;
+    if(mabs>labs) return 0;
+    if(m<0) sfac=pow(-1,mabs)*fac(labs-mabs)/(1.0*fac(labs+mabs));
+    int sign=1;
+    if(labs%2!=0) sign=-1;
+    double Pmm=sign*dfac(2*mabs-1)*pow(1-x*x,0.5*mabs);
+    if (mabs==labs) return Pmm*sfac;
+    double Pmp=x*(2*labs+1)*Pmm*sfac;
+    if (labs-mabs==1) return Pmp*sfac;
+    int del=labs-mabs;
+    for(int i=1;i!=del;i++)
+    {
+        double Ptmp=((2*(mabs+i)+1)*x*Pmp-(2*mabs+i)*Pmm)/(i+1.0);
+        Pmm=Pmp;
+        Pmp=Ptmp;
+    }
+    return Pmp*sfac;
+}
+
+complex <double> Yml(double phi,double theta, int m, int l)
+{
+const    double PI=3.14159265;
+
+      complex<double> im ;im.real(0); im.imag(1);
+      double pfac=sqrt((2*l+1)/4.0*PI*fac(l-m)/fac(l+m));
+
+    return exp(im*(double) m*phi)*ALegendre(m,l,cos(theta))*pfac;
+}
+
 double Legendre(double x,int order)
 {
 double result=0;
@@ -198,6 +245,8 @@ result+=pow(-1,i)*fac(2*order-2*i)/fac(i)/fac(order-i)/fac(order-2*i)*pow(x,orde
 }
 return result*1/pow(2,order);
 }
+
+
 
 
 namespace std
@@ -295,9 +344,9 @@ int nextp2(long int N)
  *  Rotates an 
  *  @@Ar
  * **/
-std::tuple Rotate(std::tuple &vec, double angle, std::tuple &x)
+std::triple Rotate(std::triple &vec, double angle, std::triple &x)
 {
-  std::tuple a;
+  std::triple a;
   a.x=1;a.y=1;a.z=1;
   double center=(1-cos(angle));
   Matrix3 rot;
@@ -312,30 +361,30 @@ std::tuple Rotate(std::tuple &vec, double angle, std::tuple &x)
   rot.row[1]=rot.row[1]*vec.y;
   rot.row[2]=rot.row[2]*vec.z;
 //
-   cout << " c " << center << " a " << angle << " t" << rot.row[0].x<< endl; 
+ //  cout << " c " << center << " a " << angle << " t" << rot.row[0].x<< endl; 
   
   rot.row[0].x=vec.x*rot.row[0].x+ca;
   rot.row[0].y=vec.y*rot.row[0].y-vec.z*sa; 
   rot.row[0].z=vec.z*rot.row[0].z+vec.y*sa;
   
-  cout << rot.row[0].x << " " << rot.row[0].y << " " << rot.row[0].z << "\t    | " << x.x  << endl;
+ // cout << rot.row[0].x << " " << rot.row[0].y << " " << rot.row[0].z << "\t    | " << x.x  << endl;
   
   rot.row[1].x=vec.x*rot.row[1].x+vec.z*sa;
   rot.row[1].y=vec.y*rot.row[1].y+ca; 
   rot.row[1].z=vec.z*rot.row[1].z-vec.x*sa;
 
-  cout << rot.row[1].x << " " << rot.row[1].y << " " << rot.row[1].z <<  "\t    | " << x.y  << endl;
+ // cout << rot.row[1].x << " " << rot.row[1].y << " " << rot.row[1].z <<  "\t    | " << x.y  << endl;
 
   rot.row[2].x=vec.x*rot.row[2].x-vec.y*sa;
   rot.row[2].y=vec.y*rot.row[2].y+vec.x*sa; 
   rot.row[2].z=vec.z*vec.z*(1-ca)+ca; 
  
-  cout << rot.row[2].x << " " << rot.row[2].y << " " << rot.row[2].z <<  " \t   | " << x.z  << endl;
+ // cout << rot.row[2].x << " " << rot.row[2].y << " " << rot.row[2].z <<  " \t   | " << x.z  << endl;
 
-  cout << endl;
+ // cout << endl;
   
-  tuple res=rot*x;
-  cout << res.x <<"  " << res.y << "  " << res.z << " NORM " << res.abs() << endl; 
+  triple res=rot*x;
+//  cout << res.x <<"  " << res.y << "  " << res.z << " NORM " << res.abs() << endl; 
   return rot*x;
 }
 };
